@@ -63,9 +63,45 @@ app.post('/scrape', async (req, res) => {
             puppeteerArgs.push(`--proxy-server=${proxy}`);
         }
 
-        // By not setting `executablePath` and having removed the PUPPETEER_EXECUTABLE_PATH
-        // env var, Puppeteer will use its own bundled Chromium version.
-        const browser = await puppeteer.launch({ headless: true, args: puppeteerArgs });
+        // Configure Chrome executable path for deployment environments
+        const launchOptions = { 
+            headless: true, 
+            args: puppeteerArgs
+        };
+        
+        // Try to use system Chrome in production environments like Render
+        if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+            // Common Chrome paths on Linux systems (like Render)
+            const chromePaths = [
+                '/usr/bin/google-chrome-stable',
+                '/usr/bin/google-chrome',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/chromium',
+                process.env.CHROME_BIN
+            ].filter(Boolean);
+            
+            // Try to find an existing Chrome installation
+            let chromeFound = false;
+            for (const chromePath of chromePaths) {
+                try {
+                    const fs = await import('fs');
+                    if (fs.existsSync && fs.existsSync(chromePath)) {
+                        launchOptions.executablePath = chromePath;
+                        chromeFound = true;
+                        console.log(`Using Chrome at: ${chromePath}`);
+                        break;
+                    }
+                } catch (e) {
+                    // Continue to next path
+                }
+            }
+            
+            if (!chromeFound) {
+                console.log('No system Chrome found, using Puppeteer bundled Chromium');
+            }
+        }
+        
+        const browser = await puppeteer.launch(launchOptions);
         const page = await browser.newPage();
         await page.setUserAgent('MyScraperBot/1.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
         await page.goto(url, { waitUntil: 'networkidle2' });
