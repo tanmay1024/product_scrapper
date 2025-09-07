@@ -57,7 +57,7 @@ app.post('/scrape', async (req, res) => {
         const proxy = getProxy();
         const browserArgs = proxy ? [`--proxy-server=${proxy}`] : [];
 
-        const browser = await puppeteer.launch({ headless: true, args: browserArgs });
+        const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
         const page = await browser.newPage();
         await page.setUserAgent('MyScraperBot/1.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
         await page.goto(url, { waitUntil: 'networkidle2' });
