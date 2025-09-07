@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: product-scrapper
+    env: node
+    plan: starter
+    buildCommand: npm install && npx puppeteer browsers install chrome
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /opt/render/.cache/puppeteer/chrome/linux-140.0.7339.80/chrome-linux64/chrome

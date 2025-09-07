@@ -69,35 +69,83 @@ app.post('/scrape', async (req, res) => {
             args: puppeteerArgs
         };
         
-        // Try to use system Chrome in production environments like Render
+        // Handle Chrome executable path for Render and other production environments
         if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-            // Common Chrome paths on Linux systems (like Render)
-            const chromePaths = [
-                '/usr/bin/google-chrome-stable',
-                '/usr/bin/google-chrome',
-                '/usr/bin/chromium-browser',
-                '/usr/bin/chromium',
-                process.env.CHROME_BIN
-            ].filter(Boolean);
+            console.log('Production environment detected, configuring Chrome...');
             
-            // Try to find an existing Chrome installation
-            let chromeFound = false;
-            for (const chromePath of chromePaths) {
+            // Try environment variable first (set by render.yaml)
+            if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+                console.log(`Trying PUPPETEER_EXECUTABLE_PATH: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
                 try {
                     const fs = await import('fs');
-                    if (fs.existsSync && fs.existsSync(chromePath)) {
-                        launchOptions.executablePath = chromePath;
-                        chromeFound = true;
-                        console.log(`Using Chrome at: ${chromePath}`);
-                        break;
+                    if (fs.existsSync && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+                        launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+                        console.log(`Using Chrome from env var: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
                     }
                 } catch (e) {
-                    // Continue to next path
+                    console.log('PUPPETEER_EXECUTABLE_PATH not accessible');
                 }
             }
             
-            if (!chromeFound) {
-                console.log('No system Chrome found, using Puppeteer bundled Chromium');
+            // If not found, try Puppeteer cache directory
+            if (!launchOptions.executablePath) {
+                const cacheDir = process.env.PUPPETEER_CACHE_DIR || '/opt/render/.cache/puppeteer';
+                console.log(`Checking Puppeteer cache directory: ${cacheDir}`);
+                
+                try {
+                    const fs = await import('fs');
+                    const path = await import('path');
+                    
+                    // Look for Chrome in the cache directory
+                    if (fs.existsSync && fs.existsSync(cacheDir)) {
+                        const chromeDir = path.join(cacheDir, 'chrome');
+                        if (fs.existsSync(chromeDir)) {
+                            // Find the version directory
+                            const versions = fs.readdirSync(chromeDir);
+                            console.log(`Found Chrome versions: ${versions.join(', ')}`);
+                            
+                            for (const version of versions) {
+                                const chromePath = path.join(chromeDir, version, 'chrome-linux64', 'chrome');
+                                if (fs.existsSync(chromePath)) {
+                                    launchOptions.executablePath = chromePath;
+                                    console.log(`Using Chrome from cache: ${chromePath}`);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log('Error accessing Puppeteer cache:', e.message);
+                }
+            }
+            
+            // Fallback to system Chrome paths
+            if (!launchOptions.executablePath) {
+                console.log('Trying system Chrome paths...');
+                const chromePaths = [
+                    '/usr/bin/google-chrome-stable',
+                    '/usr/bin/google-chrome',
+                    '/usr/bin/chromium-browser',
+                    '/usr/bin/chromium',
+                    process.env.CHROME_BIN
+                ].filter(Boolean);
+                
+                for (const chromePath of chromePaths) {
+                    try {
+                        const fs = await import('fs');
+                        if (fs.existsSync && fs.existsSync(chromePath)) {
+                            launchOptions.executablePath = chromePath;
+                            console.log(`Using system Chrome: ${chromePath}`);
+                            break;
+                        }
+                    } catch (e) {
+                        // Continue to next path
+                    }
+                }
+            }
+            
+            if (!launchOptions.executablePath) {
+                console.log('No Chrome executable found, letting Puppeteer handle it...');
             }
         }
         
