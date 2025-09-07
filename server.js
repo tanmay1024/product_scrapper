@@ -42,7 +42,8 @@ app.post('/scrape', async (req, res) => {
         const robotsUrl = `${urlObject.protocol}//${urlObject.hostname}/robots.txt`;
 
         // 1. Respect robots.txt
-        const robotsParser = new RobotsTxtParser();
+        // FIX: Call the factory function to get a parser instance (not a constructor).
+        const robotsParser = RobotsTxtParser();
         await robotsParser.fetch(robotsUrl);
         if (!robotsParser.canCrawl(url, 'MyScraperBot/1.0')) {
             return res.status(403).json({ error: "Scraping is disallowed by this site's robots.txt" });
