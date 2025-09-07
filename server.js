@@ -6,7 +6,9 @@ import puppeteer from 'puppeteer';
 // This is the most robust way to handle this specific library's packaging.
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { RobotsTxtParser } = require('robots-txt-parser');
+// The 'robots-txt-parser' library uses a default export for its class.
+// We must import it without using destructuring braces {}.
+const RobotsTxtParser = require('robots-txt-parser');
 
 import cors from 'cors';
 
@@ -40,7 +42,6 @@ app.post('/scrape', async (req, res) => {
         const robotsUrl = `${urlObject.protocol}//${urlObject.hostname}/robots.txt`;
 
         // 1. Respect robots.txt
-        // FIX: Instantiate the parser directly from the correctly required class.
         const robotsParser = new RobotsTxtParser();
         await robotsParser.fetch(robotsUrl);
         if (!robotsParser.canCrawl(url, 'MyScraperBot/1.0')) {
