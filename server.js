@@ -3,10 +3,10 @@
 import express from 'express';
 import puppeteer from 'puppeteer';
 // FIX: Use createRequire to reliably import the CommonJS 'robots-txt-parser' module.
-// The package exports the constructor as the default export, not as a named export.
+// This is the most robust way to handle this specific library's packaging.
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const RobotsTxtParser = require('robots-txt-parser');
+const { RobotsTxtParser } = require('robots-txt-parser');
 
 import cors from 'cors';
 
@@ -40,8 +40,8 @@ app.post('/scrape', async (req, res) => {
         const robotsUrl = `${urlObject.protocol}//${urlObject.hostname}/robots.txt`;
 
         // 1. Respect robots.txt
-        // FIX: Call the factory function to get a parser instance (not a constructor).
-        const robotsParser = RobotsTxtParser();
+        // FIX: Instantiate the parser directly from the correctly required class.
+        const robotsParser = new RobotsTxtParser();
         await robotsParser.fetch(robotsUrl);
         if (!robotsParser.canCrawl(url, 'MyScraperBot/1.0')) {
             return res.status(403).json({ error: "Scraping is disallowed by this site's robots.txt" });
@@ -53,11 +53,17 @@ app.post('/scrape', async (req, res) => {
             return res.json(cache.get(url));
         }
 
-        // 3. Rotate IP (via proxy)
+        // 3. Configure Puppeteer for containerized environment
         const proxy = getProxy();
-        const browserArgs = proxy ? [`--proxy-server=${proxy}`] : [];
+        // Add required arguments for running in a containerized environment like Render
+        const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+        if (proxy) {
+            puppeteerArgs.push(`--proxy-server=${proxy}`);
+        }
 
-        const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+        // By not setting `executablePath` and having removed the PUPPETEER_EXECUTABLE_PATH
+        // env var, Puppeteer will use its own bundled Chromium version.
+        const browser = await puppeteer.launch({ headless: true, args: puppeteerArgs });
         const page = await browser.newPage();
         await page.setUserAgent('MyScraperBot/1.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
         await page.goto(url, { waitUntil: 'networkidle2' });
